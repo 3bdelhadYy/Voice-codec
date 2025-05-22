@@ -1,0 +1,92 @@
+function [encoded_signal, time_vector] = encoder(bit_stream, encoding_type, A, bit_duration, bit_rate, R, fs, n)
+%{
+ENCODER PCM encoder using NRZ signaling.
+
+Inputs:
+    bit_stream      : Binary bit stream (vector of 0s and 1s)
+    encoding_type   : 'unipolar' or 'polar'
+    A : Amplitude of the NRZ pulse
+    bit_duration    : Duration of each bit (seconds)
+    bit_rate        : frequency of bits
+    R               : number bits
+    fs              : sampling frequency
+    n               : number of samples for each bit # samples/bits
+
+Outputs:
+    encoded_signal  : Encoded PCM signal
+    time_vector     : Time axis of encoded signal
+%}
+
+%{
+    samples_per_bit = 100;
+    total_bits = length(bit_stream);
+    total_samples = total_bits * samples_per_bit;
+
+    encoded_signal = zeros(1, total_samples);
+
+    for i = 1:total_bits
+        idx = (i-1)*samples_per_bit + 1 : i*samples_per_bit;
+        if strcmpi(encoding_type, 'unipolar')
+            encoded_signal(idx) = bit_stream(i) * pulse_amplitude;
+        else
+            encoded_signal(idx) = pulse_amplitude * (2*bit_stream(i) - 1);
+        end
+    end
+
+    time_vector = linspace(0, bit_duration * total_bits, total_samples);
+
+    % Plot only first 10 bits
+    figure;
+    plot(time_vector(1:10*samples_per_bit), encoded_signal(1:10*samples_per_bit));
+    title(sprintf('%s NRZ Encoding (First 10 Bits)', encoding_type));
+    xlabel('Time (s)'); ylabel('Amplitude');
+    grid on;
+    ylim([-pulse_amplitude*1.5 pulse_amplitude*1.5]);
+%}
+
+    % n = #samples/bit (number of samples representing each bit)
+    Tb = 1/bit_rate;    % Bit duration
+    Ts = 1/Fs;          % Sampling period
+
+    if (Ts < R*Tb)
+        warning("Not valid! The sampling period must be larger than the bit frame total duration!");
+    end
+
+    t_total = length(bit_stream) * Tb;  % Total time duration of all bits
+    n_total = n * length(bit_stream);
+    t_step = Tb / n;
+    PCM_t = 0 : t_step : t_total - t_step;
+    
+    PCM_signal = zeros(1, n_total);
+    A = pulse_amplitude;    % Pulse amplitude
+
+    if(line_code == 0)  % NRZ Unipolar
+        for i = 1:length(bit_stream)
+            if (bit_stream(i) == 1)
+                PCM_signal((i-1)*n + 1 : i*n) = A;  % '1' represented by A
+            else
+                PCM_signal((i-1)*n + 1 : i*n) = 0;  % '0' represented by 0
+            end
+        end
+        figure_title = 'NRZ Unipolar Signal';
+    
+    elseif(line_code == 1)  % NRZ Polar
+        for i = 1:length(bit_stream)
+            if (bit_stream(i) == 1)
+                PCM_signal((i-1)*n + 1 : i*n) = A;   % '1' represented by +A
+            else
+                PCM_signal((i-1)*n + 1 : i*n) = -A;  % '0' represented by -A
+            end
+        end
+        figure_title = 'NRZ Polar Signal';
+    end
+
+    % Plot the first 20 bits
+    nexttile
+    plot(PCM_t(1:20*n), PCM_signal(1:20*n));
+    xlabel('Time [sec]');
+    ylabel('Amplitude');
+    title(strcat(figure_title, ' (first 20 bits)'));
+    legend('Encoder output');
+    grid on;
+end

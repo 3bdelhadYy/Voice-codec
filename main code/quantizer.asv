@@ -1,0 +1,72 @@
+function [quantized_signal, mse, bit_stream, mp_max, mp_min, R] = quantizer(input_signal, t, L, quantization_mode)
+    % QUANTIZER Quantizes input signal according to specified mode
+    %
+    % Inputs:
+    %   input_signal      - The signal to be quantized
+    %   t                 - Time vector for plotting
+    %   L                 - Number of quantization levels
+    %   quantization_mode - 0 for mid-rise, 1 for mid-tread
+    %
+    % Outputs:
+    %   quantized_signal   - The quantized version of input signal
+    %   mean_sqr_q_error   - Mean square quantization error
+    %   bit_stream         - Binary representation of quantized signal
+    %   mp_max             - Maximum amplitude (for decoder)
+    %   mp_min             - Minimum amplitude (for decoder)
+    %   R                  - Number of bits per sample
+    
+    mp_max = max(input_signal);   %output, to be used by the decoder
+    mp_min = min(input_signal);   %...
+    delta = (mp_max-mp_min)/L;    %step size
+
+    if(quantization_mode == 0)  %mid rise
+        %Initializing quantization levels
+        min_q_level = mp_min + delta/2;
+        max_q_level = mp_max - delta/2;
+        quantization_levels = min_q_level : delta : max_q_level;
+        
+        modified_input_signal = max(min_q_level, min(input_signal,max_q_level));
+        modified_input_signal = modified_input_signal + delta/2;
+        
+        index = indexLevels(modified_input_signal, delta);
+        
+    elseif (quantization_mode == 1)  %Mid tread
+        min_q_level = mp_min+delta;
+        max_q_level = mp_max;
+        quantization_levels = min_q_level : delta : max_q_level;
+        
+        modified_input_signal = max(min_q_level, min(input_signal,max_q_level));
+        
+        index = indexLevels(modified_input_signal, delta);
+    else
+        error('Not valid!');        
+    end
+    
+    quantized_signal = quantization_levels(index); %the actual quantized signal
+
+    %figure of input signal and the quantized signal
+    figure;
+    plot(t, input_signal);
+    hold on
+    stairs(t,quantized_signal);
+    legend('Input Signal', 'Quantized Signal');
+    xlabel('t[sec]');
+    ylabel('Amplitude');
+    title('input signal vs. quantized signal');
+
+    %the mean square quantization error
+    mse = mean((input_signal(:1000) - quantized_signal).^2);
+
+    %A stream of bits representing the quantized signal
+    % here we map the quantization levels indices into binary values
+    % represinting the bit stream (since the indices are positive intger, easy to be mapped into binary numbers and vice versa)
+    index = index-1;    %for 0 to be included in the binary representation of the indices
+    R = ceil(log2(L));  %bit frame size     %ciel is used in case L is not binary weighted
+
+    bit_stream = int2bit(index,R);
+    bit_stream = reshape(bit_stream, 1, numel(bit_stream));
+    
+    display('Bit stream (first 20 bits):');
+    display(bit_stream(1:20));    
+end
+

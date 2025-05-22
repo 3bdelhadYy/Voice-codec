@@ -1,0 +1,99 @@
+function [restored_bit_stream, restored_quantized_signal] = decoder(time_vector, encoded_signal, mp_max, mp_min, L, quantization_mode, encoding_type, n, A)
+%{
+DECODER Decodes PCM NRZ signal into quantized levels.
+
+Inputs:
+  encoded_signal  : Received PCM signal
+  time_vector     : Time axis of the PCM signal
+  encoding_type   : 'unipolar' or 'polar'
+  pulse_amplitude : Pulse amplitude used in encoding
+  bit_duration    : Duration of each bit (s)
+  L               : Number of quantization levels
+  mp              : Peak quantization level
+
+Outputs:
+  decoded_signal : Reconstructed quantized signal
+
+Decoder 
+    quantization mode
+    0 => Mid rise
+    1 => Mid tread
+Line codes
+    0 => NRZ Unipolar
+    1 => NRZ Polar
+%}
+
+    % [1] Decoding the PCM -> bit stream
+    restored_bit_stream = correlator_receiver(encoded_signal, n, encoding_type, A);
+        
+    % [2] Dequantization
+    delta = (mp_max - mp_min)/L;
+    bit_frame_size = ceil(log2(L));
+
+    if(quantization_mode == 0)  % mid rise
+        % Quantization levels
+        min_q_level = mp_min + delta/2;
+        max_q_level = mp_max - delta/2;
+        quantization_levels = min_q_level : delta : max_q_level;
+    
+    elseif(quantization_mode == 1)  % Mid tread
+        % Quantization levels
+        min_q_level = mp_min + delta;
+        max_q_level = mp_max;
+        quantization_levels = min_q_level : delta : max_q_level;
+    else
+        error('Invalid quantization mode!');
+    end  
+
+    restored_q_levels_indices = bit2int(restored_bit_stream', bit_frame_size)';
+    restored_q_levels_indices = restored_q_levels_indices + 1; % Adjust for 1-based indexing
+    restored_quantized_signal = quantization_levels(restored_q_levels_indices);
+
+    nexttile
+    plot(time_vector, restored_quantized_signal);
+    xlabel('Time [sec]');
+    ylabel('Amplitude');
+    title('Restored Quantized Signal');
+    legend('Decoder output');
+    grid on;
+end
+
+%% Correlator Receiver for NRZ line codes
+function [restored_bit_stream] = correlator_receiver(encoded_signal, n, encoding_type, A)
+    num_bits = length(encoded_signal)/n;
+    restored_bit_stream = zeros(1, num_bits);
+    
+    if(line_code == 0)  % NRZ Unipolar
+        threshold = A/2;  % Decision threshold
+        
+        for i = 1:num_bits
+            start_idx = (i-1)*n + 1;
+            end_idx = i*n;
+            pulse_mean = mean(PCM_signal(start_idx:end_idx));
+            
+            if pulse_mean > threshold
+                restored_bit_stream(i) = 1;
+            else
+                restored_bit_stream(i) = 0;
+            end
+        end
+        
+    elseif(line_code == 1)  % NRZ Polar
+        threshold = 0;  % Decision threshold for polar NRZ
+        
+        for i = 1:num_bits
+            start_idx = (i-1)*n + 1;
+            end_idx = i*n;
+            pulse_mean = mean(PCM_signal(start_idx:end_idx));
+            
+            if pulse_mean > threshold
+                restored_bit_stream(i) = 1;
+            else
+                restored_bit_stream(i) = 0;
+            end
+        end
+        
+    else
+        error('Invalid line code!');
+    end
+end
